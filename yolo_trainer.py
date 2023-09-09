@@ -253,9 +253,43 @@ class YoloTrainer:
             yaml.dump(data, file)
 
     @staticmethod
-    def train(img_size, batch_size, epochs, data_yaml, cfg_path, weights_path, name):
+    def get_advanced_options():
         """
-        Trains the model using the specified parameters.
+        Displays a menu of available training options and collects user selections.
+
+        Returns:
+            dict: A dictionary containing user-selected options and their values.
+        """
+        options = {}
+
+        # Ask the user if they want to apply advanced parameters
+        apply_advanced = input("Apply advanced training parameters (if in doubt, say 'n') (y/n)? ").strip().lower()
+        if apply_advanced == "y":
+            print("\nSelect advanced training options (press Enter to skip):\n")
+
+            # Define the available advanced options and their descriptions
+            advanced_options = {
+                "--lr": "Learning rate",
+                "--multi-scale": "Enable multi-scale training",
+                "--sync-bn": "Use synchronized batch normalization",
+                "--cache-images": "Cache images for faster training",
+                # Add more options here as needed
+            }
+
+            for option, description in advanced_options.items():
+                user_input = input(f"Include {description} ({option}) (y/n)? ").strip().lower()
+                if user_input == "y":
+                    if option in ("--sync-bn", "--cache-images"):
+                        value = True  # For boolean options, set to True if selected
+                    else:
+                        value = input(f"Enter the value for {option} (e.g., 0.001): ").strip()
+                    options[option] = value
+
+        return options
+
+    def train(self, img_size, batch_size, epochs, data_yaml, cfg_path, weights_path, name):
+        """
+        Trains the model using the specified parameters with user-selected options.
         Uses subprocess to do the training.
 
         Args:
@@ -270,6 +304,7 @@ class YoloTrainer:
         Returns:
             None
         """
+
         yolov5_path = os.path.join(os.getcwd(), "yolov5")
         runs_path = os.path.join(os.getcwd(), "yolov5", "runs")
         if os.path.exists(runs_path):
@@ -277,45 +312,43 @@ class YoloTrainer:
 
         final_data_yaml = os.getcwd() + "/" + data_yaml
         final_cfg_path = yolov5_path + "/" + cfg_path
-        # Training command using the virtual environment's Python interpreter
-        first_command = f"cd {yolov5_path}"
+
+        # Get user-selected options
+        user_options = self.get_advanced_options()
+
+        # Construct the final training command with user-selected options
         final_command = (f"python {yolov5_path}/train.py --img {img_size} --batch {batch_size} "
                          f"--epochs {epochs} --data {final_data_yaml} --cfg {final_cfg_path} "
                          f"--weights {weights_path} --name {name} --cache")
 
+        for option, value in user_options.items():
+            if value is not None:
+                final_command += f" {option} {value}"
+
         print(f"\nStarting training with command: {final_command}")
 
         try:
-            # Spawn a new process for the first command
-            first_process = subprocess.Popen(first_command, shell=True)
-
-            # Wait for the first process to complete
-            first_process.wait()
+            # Spawn a new process for the final training command
+            final_process = subprocess.Popen(
+                final_command,
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                bufsize=1,  # Line buffered
+                universal_newlines=True,  # Text mode
+            )
 
             try:
-                # Spawn a new process for the final training command
-                final_process = subprocess.Popen(
-                    final_command,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    bufsize=1,  # Line buffered
-                    universal_newlines=True,  # Text mode
-                )
+                # Process and print the output line by line in real-time
+                for line in final_process.stdout:
+                    print(line, end='')
+            except Exception as e:
+                print(f"Error during training: {e}")
 
-                try:
-                    # Process and print the output line by line in real-time
-                    for line in final_process.stdout:
-                        print(line, end='')
-                except Exception as e:
-                    print(f"Error during training: {e}")
-
-                # Wait for the final process to complete
-                final_process.wait()
-            except subprocess.CalledProcessError as e:
-                logging.log(logging.ERROR, f"Error during training: {e}")
+            # Wait for the final process to complete
+            final_process.wait()
         except subprocess.CalledProcessError as e:
-            logging.log(logging.ERROR, f"Couldn't find folder: {e}")
+            logging.log(logging.ERROR, f"Error during training: {e}")
 
     @staticmethod
     def test_model():
@@ -371,8 +404,6 @@ class YoloTrainer:
             cv2.rectangle(image, (x1, y1 - label_size[1]), (x1 + label_size[0], y1), color, cv2.FILLED)
             cv2.putText(image, text, (x1, y1), cv2.FONT_HERSHEY_SIMPLEX, font_scale,
                         (0, 0, 0), font_thickness)
-
-
 
         # Display the image with detections
         cv2.imshow('Detections', image)
