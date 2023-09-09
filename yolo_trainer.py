@@ -5,32 +5,10 @@ import logging
 import cv2
 import torch
 import yaml
+from tqdm import tqdm
 
 # Configure logging to display INFO level logs
 logging.basicConfig(level=logging.INFO)
-
-
-def download_yolov5_repository():
-    """
-    Downloads the YOLOv5 repository from GitHub if it does not already exist.
-
-    Returns:
-        None
-    """
-    yolov5_path = os.path.join(os.getcwd(), "yolov5")
-
-    # Check if the Yolov5 directory already exists
-    if not os.path.exists(yolov5_path):
-        print("YOLOv5 repository not found. Downloading...")
-
-        # Use git to clone the YOLOv5 repository from GitHub
-        try:
-            subprocess.run(["git", "clone", "https://github.com/ultralytics/yolov5.git", yolov5_path])
-            print(f"YOLOv5 repository downloaded successfully to '{yolov5_path}'.")
-        except Exception as e:
-            print(f"Error downloading YOLOv5 repository: {e}")
-    else:
-        print(f"YOLOv5 repository is already present in '{yolov5_path}'.")
 
 
 class YoloTrainer:
@@ -40,7 +18,31 @@ class YoloTrainer:
         self.result_folder = os.path.join(os.getcwd(), "yolov5", "runs", "train", "yolov5s_results")
         self.output_model_path = os.path.join(self.result_folder, "weights", self.output_model)
 
+        self.download_yolov5_repository()
+
         self.start()
+
+    def download_yolov5_repository(self):
+        """
+        Downloads the YOLOv5 repository from GitHub if it does not already exist.
+
+        Returns:
+            None
+        """
+        yolov5_path = os.path.join(os.getcwd(), "yolov5")
+
+        # Check if the Yolov5 directory already exists
+        if not os.path.exists(yolov5_path):
+            print(self.wrap_in_step("YOLOv5 repository not found. Downloading..."))
+
+            # Use git to clone the YOLOv5 repository from GitHub
+            try:
+                subprocess.run(["git", "clone", "https://github.com/ultralytics/yolov5.git", yolov5_path])
+                print(self.wrap_in_step(f"YOLOv5 repository downloaded successfully to '{yolov5_path}'."))
+            except Exception as e:
+                logging.log(logging.ERROR, f"Error downloading YOLOv5 repository: {e}")
+        else:
+            print(self.wrap_in_step(f"YOLOv5 repository is already present in '{yolov5_path}'."))
 
     def start(self):
         """
@@ -60,7 +62,7 @@ class YoloTrainer:
             None
         """
         while True:
-            print(self.wrap_in_step("\nOptions:\n"
+            print(self.wrap_in_step("Options:\n"
                                     "1 - Copy the result folder (model and all its generated data)\n"
                                     "2 - Copy only the model\n"
                                     "3 - Test the model\n"
@@ -94,14 +96,44 @@ class YoloTrainer:
             str: The path where the dataset was copied.
                 Returns `None` in case of an error.
         """
+        # Define the expected directory structure
+        expected_structure = [
+            "test/labels",
+            "test/images",
+            "valid/labels",
+            "valid/images",
+            "train/labels",
+            "train/images",
+            "data.yaml"
+        ]
+
+        print(self.wrap_in_step("Analyzing dataset for errors in its structure."))
+
+        # Verify if the provided dataset_path has the expected structure
+        for item in expected_structure:
+            if os.path.exists(os.path.join(dataset_path, item)):
+                print(f"Verified: {item} ✅")
+            else:
+                print(f"❌ Error: {item} not found in the provided dataset_path. ❌")
+                return None
+
+        print(self.wrap_in_step("Dataset analyzed and is OK. Now copying the it"))
+
         # Ensure the temp/dataset folder does not exist before creating it
         temp_dataset_path = os.path.join(self.temp_dir, "dataset")
         if os.path.exists(temp_dataset_path):
             shutil.rmtree(temp_dataset_path)
 
-        # Copy the contents of the provided dataset_path to the temp/dataset folder
+        # Copy the contents of the provided dataset_path to the temp/dataset folder with progress bar
         try:
-            shutil.copytree(dataset_path, temp_dataset_path)
+            for item in tqdm(expected_structure, desc="Copying"):
+                source_path = os.path.join(dataset_path, item)
+                destination_path = os.path.join(temp_dataset_path, item)
+
+                if os.path.isdir(source_path):
+                    shutil.copytree(source_path, destination_path)
+                else:
+                    shutil.copy(source_path, destination_path)
 
             print(self.wrap_in_step(f"Dataset copied to {temp_dataset_path}"))
             return temp_dataset_path  # Return the path where the dataset was copied
@@ -155,7 +187,11 @@ class YoloTrainer:
         """
         name = "yolov5s_results"
         # Step 1: Prepare the dataset in a temporary directory
-        copied_path = self.prepare_dataset(dataset_path)
+        temp_dataset_path = os.path.join(self.temp_dir, "dataset")
+        if os.path.exists(temp_dataset_path):
+            copied_path = temp_dataset_path
+        else:
+            copied_path = self.prepare_dataset(dataset_path)
 
         # Step 2: Modify the data.yaml file (if needed)
         if copied_path is not None:
@@ -174,11 +210,15 @@ class YoloTrainer:
             epochs = int(input("Enter the number of epochs (e.g., 5): "))
 
             # Step 3: Train the model
-            self.train(img_size, batch_size, epochs, modified_data_yaml, cfg_path, weights_path, name)
+            result = self.train(img_size, batch_size, epochs, modified_data_yaml, cfg_path, weights_path, name)
 
-            print(self.wrap_in_step("Train done. Now, the model is ready to be used."))
+            if result:
+                print(self.wrap_in_step("Train done. Now, the model is ready to be used."))
 
-            self.menu()
+                self.menu()
+            else:
+                print(self.wrap_in_step("ERROR IN TRAINING: The model wasn't trained. Trying again."))
+                self.run(dataset_path)
 
             # Final step: Delete the temporary folders (dataset and trained_model)
             shutil.rmtree(os.path.join(self.temp_dir))
@@ -201,8 +241,8 @@ class YoloTrainer:
         max_length = max(len(line) for line in lines)
 
         # Generate the top and bottom borders
-        top_border = f"+{'-' * (max_length + 2)}+"
-        bottom_border = top_border
+        top_border = f"\n+{'-' * (max_length + 2)}+"
+        bottom_border = f"+{'-' * (max_length + 2)}+\n"
 
         # Generate the content with '|' borders
         content = "\n".join(f"| {line.ljust(max_length)} |" for line in lines)
@@ -338,17 +378,19 @@ class YoloTrainer:
                 universal_newlines=True,  # Text mode
             )
 
-            try:
-                # Process and print the output line by line in real-time
-                for line in final_process.stdout:
-                    print(line, end='')
-            except Exception as e:
-                print(f"Error during training: {e}")
+            # Process and print the output line by line in real-time
+            for line in final_process.stdout:
+                print(line, end='')
 
             # Wait for the final process to complete
             final_process.wait()
+            if os.path.exists(self.output_model_path):
+                return True
+            else:
+                return False
         except subprocess.CalledProcessError as e:
             logging.log(logging.ERROR, f"Error during training: {e}")
+            return False
 
     @staticmethod
     def test_model():
@@ -412,5 +454,4 @@ class YoloTrainer:
 
 
 if __name__ == "__main__":
-    download_yolov5_repository()
     YoloTrainer()
