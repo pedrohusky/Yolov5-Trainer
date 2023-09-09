@@ -45,12 +45,18 @@ Before using the YOLOv5 Trainer, ensure you have the following dependencies inst
    ```bash
    git clone https://github.com/yourusername/yolov5-trainer.git
    cd yolov5-trainer
+   ```
+2. **Instal requirements:**
+   ```bash
    pip install requirements.txt
+   ```
+3. **Run the trainer:**
+   ```bash
    python yolo_trainer.py
    ```
    
-2. **Follow the trainer directions**.
-3. _**When finished, you can copy the entire folder of the model, or just the model, and test it.**_
+4. **Follow the trainer directions**.
+5. _**When finished, you can copy the entire folder of the model, or just the model, and test it.**_
 
 ## Helping
 **_If you liked this repo, you can help me improve it. Just open a PR and I'll be looking into it._**
