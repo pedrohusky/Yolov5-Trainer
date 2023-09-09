@@ -16,8 +16,14 @@ It provides a easy way to model training, testing, and model management.
     ```
     dataset (root)
     |- test (folder)
+    |   |- labels (folder)
+    |   |- images (folder)
     |- valid (folder)
+    |   |- labels (folder)
+    |   |- images (folder)
     |- train (folder)
+    |   |- labels (folder)
+    |   |- images (folder)
     |- data.yaml
     ```
     - **TIP**: You can download datasets from sites like Roboflow, or prepare your own dataset following the structure mentioned above.
