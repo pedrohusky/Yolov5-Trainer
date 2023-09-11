@@ -135,7 +135,7 @@ class YoloTrainer:
                 else:
                     shutil.copy(source_path, destination_path)
 
-            print(self.wrap_in_step(f"Dataset copied to {temp_dataset_path}"))
+            print(self.wrap_in_step(f"Dataset copied to {temp_dataset_path} ✅"))
             return temp_dataset_path  # Return the path where the dataset was copied
         except Exception as e:
             logging.log(logging.ERROR, f"Error copying dataset: {e}")
@@ -153,7 +153,7 @@ class YoloTrainer:
 
         try:
             shutil.copytree(self.result_folder, destination_path)
-            print(self.wrap_in_step(f"Result folder copied to {destination_path}"))
+            print(self.wrap_in_step(f"Result folder copied to {destination_path} ✅"))
         except Exception as e:
             logging.log(logging.ERROR, f"Error copying result folder: {e}")
 
@@ -171,7 +171,7 @@ class YoloTrainer:
 
         try:
             shutil.copy(self.output_model_path, destination_path)
-            print(f"Model copied to {destination_path}")
+            print(f"Model copied to {destination_path} ✅")
         except Exception as e:
             logging.log(logging.ERROR, f"Error copying model to destination: {e}")
 
@@ -197,7 +197,7 @@ class YoloTrainer:
         if copied_path is not None:
             modified_data_yaml = os.path.join(copied_path, "data.yaml")
             self.modify_data_yaml(modified_data_yaml)
-            print(self.wrap_in_step(f"Modified data.yaml path: {modified_data_yaml}"))
+            print(self.wrap_in_step(f"Modified data.yaml path: {modified_data_yaml} ✅"))
 
             print(self.wrap_in_step("Now, we need a few params to be setted."))
 
@@ -213,11 +213,11 @@ class YoloTrainer:
             result = self.train(img_size, batch_size, epochs, modified_data_yaml, cfg_path, weights_path, name)
 
             if result:
-                print(self.wrap_in_step("Train done. Now, the model is ready to be used."))
+                print(self.wrap_in_step("Train done. Now, the model is ready to be used. ✅"))
 
                 self.menu()
             else:
-                print(self.wrap_in_step("ERROR IN TRAINING: The model wasn't trained. Trying again."))
+                print(self.wrap_in_step("❌ ERROR IN TRAINING: The model wasn't trained. Trying again. ❌"))
                 self.run(dataset_path)
 
             # Final step: Delete the temporary folders (dataset and trained_model)
